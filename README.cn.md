@@ -9,30 +9,12 @@
 在 `.github/workflows/*.yml` 工作流脚本中引用此 Action 即可使用，例如 [upload.yml](https://github.com/ophub/amlogic-s9xxx-armbian/blob/main/.github/workflows/build-armbian-arm64-server-image.yml):
 
 ```yaml
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: 你的前置构建等操作步骤
-        run: echo "Building..."
-
-      - name: 上传文件到 Release
-        id: upload_step
-        uses: ophub/upload-to-releases@main
-        with:
-          tag: "设置 tags 名称"
-          artifacts: "<path>/*.txt"
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
-          body: |
-            ### 描述你的 Release 说明
-            - 更多描述...
-
-      - name: 打印 Release 地址（可选）
-        run: |
-          echo "Release ID: ${{ steps.upload_step.outputs.release_id }}"
-          echo "Release URL: ${{ steps.upload_step.outputs.html_url }}"
+- name: 上传文件到 Release
+  uses: ophub/upload-to-releases@main
+  with:
+    tag: "设置 tags 名称"
+    artifacts: <path>/*.txt
+    gh_token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## 配置说明
@@ -43,7 +25,7 @@ jobs:
 |------|----------|--------|------|
 | `tag` | **必填** | — | 要创建或更新的 Release 标签名称（如 `v1.0.0`）。 |
 | `artifacts` | **必填** | — | 要上传的文件路径，支持 glob 通配符和逗号分隔的多路径（如 `dist/*.zip` 或 `dist/*.zip,out/*.tar.gz`）。 |
-| `gh_token` | **必填** | — | 用于 API 认证的 [GITHUB_TOKEN](https://docs.github.com/zh/actions/security-guides/automatic-token-authentication)，需要 `contents: write` 权限。 |
+| `gh_token` | **必填** | — | 用于 API 认证的 [GITHUB_TOKEN](https://docs.github.com/zh/actions/tutorials/authenticate-with-github_token) 是 GitHub 自动为每个工作流运行提供的内置令牌，无需手动创建。 |
 | `repo` | 可选 | 当前仓库 | 目标仓库，格式为 `<owner>/<repo>`，默认为运行工作流的仓库。 |
 | `allow_updates` | 可选 | `true` | 当指定标签的 Release 已存在时，是否更新其元数据（名称、正文、标志位）。设为 `false` 则跳过已有 Release 的元数据更新。 |
 | `remove_artifacts` | 可选 | `false` | 上传前是否删除 Release 中的**所有**现有资产文件。优先级高于 `replaces_artifacts`。 |
@@ -68,9 +50,10 @@ jobs:
 
 ## 注意事项
 
-- 若指定的 Tag 在仓库中尚不存在，GitHub 将在创建 Release 时自动以默认分支的当前提交为基础创建该 Tag。
-- `remove_artifacts: true` 会在上传前删除**所有**现有资产文件，请谨慎使用。
-- 当 `replaces_artifacts` 为 `true` 且已存在同名文件时，系统会先删除旧资产，再重新上传。
+- ✅ 为了能够上传文件到 Release，你需要在你的仓库的 `Settings` > `Actions` > `General` > `Workflow permissions`，选择 `Read and write permissions`，然后点击 `Save` 按钮保存更改。或者在工作流文件（.yml）中添加 [permissions](https://docs.github.com/zh/actions/reference/workflows-and-actions/workflow-syntax#permissions) 配置，上传 Release 资源对应的权限是 `contents: write`。
+- ✳️ 若指定的 `tag` 在仓库中尚不存在，GitHub 将在创建 Release 时自动以默认分支的当前提交为基础创建该 Tag。
+- ⚠️ 设置 `remove_artifacts: true` 会在上传前删除**所有**现有资产文件，请谨慎使用。
+- ♻️ 当 `replaces_artifacts` 为 `true` 且已存在同名文件时，系统会先删除旧资产，再重新上传。
 - 同时提供 `body_file` 和 `body` 时，`body_file` 优先生效。
 - 若某个文件上传卡住（速度连续 60 秒低于 1 KB/s，或超过 `upload_timeout` 设定的时限），上传任务会自动放弃当前文件并继续处理队列中的下一个文件。
 - 将 `upload_timeout` 设为 `0` 仅禁用单文件最大时限，防卡死速度守卫仍然有效——上传速度连续 60 秒低于 1 KB/s 时仍会自动放弃。

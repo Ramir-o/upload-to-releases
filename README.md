@@ -9,30 +9,12 @@ A GitHub Action that uploads files to GitHub Releases using the GitHub REST API.
 Reference this Action in a `.github/workflows/*.yml` workflow file, for example [upload.yml](https://github.com/ophub/amlogic-s9xxx-armbian/blob/main/.github/workflows/build-armbian-arm64-server-image.yml):
 
 ```yaml
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Your pre-build steps here
-        run: echo "Building..."
-
-      - name: Upload files to Release
-        id: upload_step
-        uses: ophub/upload-to-releases@main
-        with:
-          tag: "Set your release tags name"
-          artifacts: "<path>/*.txt"
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
-          body: |
-            ### Describe your release notes
-            - More description...
-
-      - name: Print release URL (optional)
-        run: |
-          echo "Release ID: ${{ steps.upload_step.outputs.release_id }}"
-          echo "Release URL: ${{ steps.upload_step.outputs.html_url }}"
+- name: Upload files to Release
+  uses: ophub/upload-to-releases@main
+  with:
+    tag: "Set the tag name"
+    artifacts: <path>/*.txt
+    gh_token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Inputs
@@ -41,7 +23,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `tag` | **Required** | — | Tag name of the release to create or update (e.g. `v1.0.0`). |
 | `artifacts` | **Required** | — | File path(s) to upload. Supports glob patterns and comma-separated values (e.g. `dist/*.zip` or `dist/*.zip,out/*.tar.gz`). |
-| `gh_token` | **Required** | — | [GITHUB_TOKEN](https://docs.github.com/en/actions/security-guides/automatic-token-authentication) used to authenticate API requests. Requires `contents: write` permission. |
+| `gh_token` | **Required** | — | The [GITHUB_TOKEN](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token) used for API authentication is a built-in token that GitHub automatically provides for each workflow run, so you don't need to create it manually. |
 | `repo` | Optional | Current repository | Target repository in `<owner>/<repo>` format. Defaults to the repository running the workflow. |
 | `allow_updates` | Optional | `true` | Update the release metadata (name, body, flags) if a release for the given tag already exists. Set to `false` to skip metadata updates on existing releases. |
 | `remove_artifacts` | Optional | `false` | Remove **all** existing assets from the release before uploading new ones. Takes priority over `replaces_artifacts`. |
@@ -66,9 +48,10 @@ jobs:
 
 ## Notes
 
-- If the specified tag does not yet exist in the repository, GitHub will automatically create it pointing to the default branch at the time of the release creation.
-- `remove_artifacts: true` deletes **all** existing assets before uploading; use with care.
-- When `replaces_artifacts` is `true` and a file with the same name already exists, the old asset is deleted first and then re-uploaded.
+- ✅ To upload files to a Release, you need to go to your repository's `Settings` > `Actions` > `General` > `Workflow permissions`, select `Read and write permissions`, and click the `Save` button. Alternatively, you can add the permissions configuration to your workflow file (.yml); the required [permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions) for uploading Release assets is `contents: write`.
+- ✳️ If the specified `tag` does not yet exist in the repository, GitHub will automatically create it pointing to the default branch at the time of the release creation.
+- ⚠️ Setting `remove_artifacts: true` deletes **all** existing assets before uploading; use with care.
+- ♻️ When `replaces_artifacts` is `true` and a file with the same name already exists, the old asset is deleted first and then re-uploaded.
 - `body_file` takes precedence over `body` when both are provided.
 - If a single file upload is stuck (speed below 1 KB/s for 60 s, or the per-file timeout is reached), the upload is automatically abandoned and the script moves on to the next file in the queue.
 - Setting `upload_timeout=0` disables only the per-file max-time limit. The stall guard (abort when speed < 1 KB/s for 60 s) stays active regardless.
