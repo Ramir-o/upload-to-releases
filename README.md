@@ -85,11 +85,11 @@ This action prints detailed real-time progress for every file:
 
 [ STEPS ] Verifying upload integrity (SHA-256)...
 [ INFO  ] ────────────────────────────────────────────────────────────────────────
-[ SUCCESS ] OK   1/5 [ firmware-arm64.img.gz ]
-[ SUCCESS ] OK   2/5 [ firmware-x86.img.gz ]
-[ SUCCESS ] OK   3/5 [ checksums.sha256 ]
-[ SUCCESS ] OK   4/5 [ release-notes.md ]
-[ SUCCESS ] OK   5/5 [ version.txt ]
+[ SUCCESS ] OK   1/5 [ firmware-arm64.img.gz ]  [ sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2 ]
+[ SUCCESS ] OK   2/5 [ firmware-x86.img.gz   ]  [ sha256:d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5 ]
+[ SUCCESS ] OK   3/5 [ checksums.sha256      ]  [ sha256:f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1 ]
+[ SUCCESS ] OK   4/5 [ release-notes.md      ]  [ sha256:b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3 ]
+[ SUCCESS ] OK   5/5 [ version.txt           ]  [ sha256:c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4 ]
 [ INFO  ] ────────────────────────────────────────────────────────────────────────
 [ SUCCESS ] Integrity summary: [ 5 ] total, [ 5 ] passed, [ 0 ] failed, [ 0 ] skipped.
 ```

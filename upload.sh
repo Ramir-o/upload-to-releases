@@ -1016,6 +1016,13 @@ verify_uploads() {
     verify_total="$(grep -c '=' "${UPLOAD_RESULTS_FILE}" 2>/dev/null || echo 0)"
     local verify_idx=0
 
+    # Pre-compute the longest filename so all columns can be padded to the same width
+    local max_fname_len=0
+    while IFS= read -r _line; do
+        local _n="${_line%%=*}"
+        [[ "${#_n}" -gt "${max_fname_len}" ]] && max_fname_len="${#_n}"
+    done <"${UPLOAD_RESULTS_FILE}"
+
     echo -e "${INFO} ────────────────────────────────────────────────────────────────────────"
 
     # Each line in UPLOAD_RESULTS_FILE has the format: filename=download_url
@@ -1029,6 +1036,10 @@ verify_uploads() {
 
         verify_idx=$((verify_idx + 1))
 
+        # Pad filename to the max width so the sha256 column stays vertically aligned
+        local fname_padded
+        printf -v fname_padded "%-${max_fname_len}s" "${fname}"
+
         # Locate the original local file path by matching basename against resolved_files
         local local_path=""
         for f in "${resolved_files[@]}"; do
@@ -1036,7 +1047,7 @@ verify_uploads() {
         done
 
         if [[ -z "${local_path}" || ! -f "${local_path}" ]]; then
-            echo -e "${NOTE} SKIP ${verify_idx}/${verify_total} [ ${fname} ] (local file not found)"
+            echo -e "${NOTE} SKIP ${verify_idx}/${verify_total} [ ${fname_padded} ] (local file not found)"
             verify_skip=$((verify_skip + 1))
             continue
         fi
@@ -1046,7 +1057,7 @@ verify_uploads() {
         local_hash="$(${SHA256_CMD} "${local_path}" 2>/dev/null | awk '{print $1}')"
 
         if [[ -z "${local_hash}" ]]; then
-            echo -e "${NOTE} SKIP ${verify_idx}/${verify_total} [ ${fname} ] (could not compute local SHA-256)"
+            echo -e "${NOTE} SKIP ${verify_idx}/${verify_total} [ ${fname_padded} ] (could not compute local SHA-256)"
             verify_skip=$((verify_skip + 1))
             continue
         fi
@@ -1062,18 +1073,17 @@ verify_uploads() {
             remote_hash="${remote_digest#sha256:}"
         else
             # No digest field returned by the API (older release) — skip rather than download
-            echo -e "${NOTE} SKIP ${verify_idx}/${verify_total} [ ${fname} ] (no digest field in API response)"
+            echo -e "${NOTE} SKIP ${verify_idx}/${verify_total} [ ${fname_padded} ] (no digest field in API response)"
             verify_skip=$((verify_skip + 1))
             continue
         fi
 
         # Compare local and remote hashes; print OK or FAIL per file
         if [[ "${local_hash}" == "${remote_hash}" ]]; then
-            echo -e "${SUCCESS} OK   ${verify_idx}/${verify_total} [ ${fname} ]"
-            [[ "${out_log}" == "true" ]] && echo -e "${INFO}      sha256: ${local_hash}"
+            echo -e "${SUCCESS} OK   ${verify_idx}/${verify_total} [ ${fname_padded} ]  [ sha256:${local_hash} ]"
             verify_pass=$((verify_pass + 1))
         else
-            echo -e "${ERROR} FAIL ${verify_idx}/${verify_total} [ ${fname} ]"
+            echo -e "${ERROR} FAIL ${verify_idx}/${verify_total} [ ${fname_padded} ]"
             echo -e "${ERROR}      local:  ${local_hash}"
             echo -e "${ERROR}      remote: ${remote_hash}"
             verify_fail=$((verify_fail + 1))
