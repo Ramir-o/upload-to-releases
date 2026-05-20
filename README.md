@@ -51,7 +51,7 @@ Reference this Action in a `.github/workflows/*.yml` workflow file, for example 
 - ✅ To upload files to a Release, you need to go to your repository's `Settings` > `Actions` > `General` > `Workflow permissions`, select `Read and write permissions`, and click the `Save` button. Alternatively, you can add the permissions configuration to your workflow file (.yml); the required [permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions) for uploading Release assets is `contents: write`.
 - ✳️ If the specified `tag` does not yet exist in the repository, GitHub will automatically create it pointing to the default branch at the time of the release creation.
 - ⚠️ Setting `remove_artifacts: true` deletes **all** existing assets before uploading; use with care.
-- ♻️ When `replaces_artifacts` is `true` and a file with the same name already exists, the old asset is deleted first and then re-uploaded.
+- ♻️ When `replaces_artifacts` is `true` and a file with the same name already exists, the remote SHA-256 is compared against the local file first. If they match, the upload is skipped (no re-upload needed). If they differ — or if the remote asset has no digest — the old asset is deleted and re-uploaded.
 - `body_file` takes precedence over `body` when both are provided.
 - If a single file upload is stuck (speed below 1 KB/s for 60 s, or the per-file timeout is reached), the upload is automatically abandoned and the script moves on to the next file in the queue.
 - Setting `upload_timeout=0` disables only the per-file max-time limit. The stall guard (abort when speed < 1 KB/s for 60 s) stays active regardless.

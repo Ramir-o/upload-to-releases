@@ -53,7 +53,7 @@
 - ✅ 为了能够上传文件到 Release，你需要在你的仓库的 `Settings` > `Actions` > `General` > `Workflow permissions`，选择 `Read and write permissions`，然后点击 `Save` 按钮保存更改。或者在工作流文件（.yml）中添加 [permissions](https://docs.github.com/zh/actions/reference/workflows-and-actions/workflow-syntax#permissions) 配置，上传 Release 资源对应的权限是 `contents: write`。
 - ✳️ 若指定的 `tag` 在仓库中尚不存在，GitHub 将在创建 Release 时自动以默认分支的当前提交为基础创建该 Tag。
 - ⚠️ 设置 `remove_artifacts: true` 会在上传前删除**所有**现有资产文件，请谨慎使用。
-- ♻️ 当 `replaces_artifacts` 为 `true` 且已存在同名文件时，系统会先删除旧资产，再重新上传。
+- ♻️ 当 `replaces_artifacts` 为 `true` 且已存在同名文件时，系统会先通过 API 查询远端文件的 SHA-256 值，并与本地文件进行比对。若 SHA-256 相同，则跳过重新上传；若 SHA-256 不同或远端文件无 digest 信息，则删除旧资产并重新上传。
 - 同时提供 `body_file` 和 `body` 时，`body_file` 优先生效。
 - 若某个文件上传卡住（速度连续 60 秒低于 1 KB/s，或超过 `upload_timeout` 设定的时限），上传任务会自动放弃当前文件并继续处理队列中的下一个文件。
 - 将 `upload_timeout` 设为 `0` 仅禁用单文件最大时限，防卡死速度守卫仍然有效——上传速度连续 60 秒低于 1 KB/s 时仍会自动放弃。

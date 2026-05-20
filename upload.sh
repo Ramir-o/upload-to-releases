@@ -645,7 +645,7 @@ fetch_assets_list() {
         count="$(echo "${api_response}" | jq '. | length')"
         # Extract only the fields needed downstream; digest is the GitHub-supplied SHA-256 checksum
         echo "${api_response}" | jq -c \
-            '.[] | {id: .id, name: .name, state: .state, digest: (.digest // null)}' \
+            '.[] | {id: .id, name: .name, state: .state, digest: (.digest // null), browser_download_url: (.browser_download_url // "")}' \
             >>"${ASSETS_LIST_FILE}"
 
         # Stop paging when the last page returns fewer items than the page size
@@ -883,11 +883,30 @@ upload_asset() {
                     echo ""
                     return 1
                 fi
-                echo -e "${INFO} │  (${file_index}/${total_files}) Asset [ ${file_name} ] already exists; replacing (replace cycle ${replace_cycles}/${MAX_REPLACE_CYCLES}, error attempt ${attempt}/${UPLOAD_MAX_RETRY})..."
+                echo -e "${INFO} │  (${file_index}/${total_files}) Asset [ ${file_name} ] already exists; checking SHA-256 before replacing (replace cycle ${replace_cycles}/${MAX_REPLACE_CYCLES}, error attempt ${attempt}/${UPLOAD_MAX_RETRY})..."
                 fetch_assets_list
-                local existing_id
+                local existing_id existing_digest
                 existing_id="$(jq -r --arg n "${file_name}" \
                     'select(.name == $n) | .id' "${ASSETS_LIST_FILE}" 2>/dev/null | head -1)"
+                existing_digest="$(jq -r --arg n "${file_name}" \
+                    'select(.name == $n) | .digest // ""' "${ASSETS_LIST_FILE}" 2>/dev/null | head -1)"
+
+                # Compare local SHA-256 against the remote digest before deciding to replace
+                local local_hash_check=""
+                local_hash_check="$(${SHA256_CMD} "${file_path}" 2>/dev/null | awk '{print $1}')"
+                if [[ -n "${local_hash_check}" && "${existing_digest}" == "sha256:${local_hash_check}" ]]; then
+                    echo -e "${SUCCESS} └─ (${file_index}/${total_files}) SHA-256 verified identical; skipping re-upload: [ ${file_name} ]"
+                    echo ""
+                    # Record as skipped (not a failure); caller counts return 2 as skipped
+                    return 2
+                fi
+
+                if [[ -z "${existing_digest}" || "${existing_digest}" == "null" ]]; then
+                    echo -e "${INFO} │  (${file_index}/${total_files}) No remote digest available for [ ${file_name} ]; replacing."
+                else
+                    echo -e "${INFO} │  (${file_index}/${total_files}) SHA-256 mismatch for [ ${file_name} ]; replacing."
+                fi
+
                 if [[ -n "${existing_id}" ]]; then
                     delete_asset "${existing_id}" "${file_name}" "${file_index}" "${total_files}"
                 fi
