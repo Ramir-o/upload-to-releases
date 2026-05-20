@@ -12,12 +12,13 @@
 #
 # error_msg                : Output error message and exit
 # cleanup                  : Remove all temporary state files on script exit
-# install_dependencies     : Check for required commands and install missing dependencies if possible
-# init_var                 : Initialize, validate, and print all parameters (reads INPUT_* env vars)
 #
 # url_encode               : Percent-encode a string for use in a URL query parameter
 # format_size              : Convert byte count to a human-readable string (KiB/MiB/GiB)
 # api_call                 : Execute a GitHub REST API request with retry on transient errors
+#
+# install_dependencies     : Check for required commands and install missing dependencies if possible
+# init_var                 : Initialize, validate, and print all parameters (reads INPUT_* env vars)
 #
 # get_release              : Query existing release metadata by tag name
 # build_release_payload    : Assemble a JSON body for the releases create/update endpoint
@@ -54,7 +55,7 @@ body=""
 body_file=""
 out_log="false"
 
-# per-file upload timeout, minutes (0 = unlimited)
+# per-file upload timeout, minutes (0 = disables max-time only; stall guard still active)
 upload_timeout="10"
 # GitHub API pagination limit
 github_per_page="100"
@@ -496,7 +497,7 @@ update_release() {
 
     [[ "${out_log}" == "true" ]] && echo -e "${INFO} Update release payload:\n${payload}"
 
-    # PATCH on the release ID endpoint updates only the fields provided
+    # PATCH sends a full payload to the release ID endpoint; GitHub applies all provided fields
     api_call PATCH "https://api.github.com/repos/${repo}/releases/${release_id}" \
         -H "Content-Type: application/json" \
         -d "${payload}"
@@ -885,17 +886,20 @@ upload_asset() {
                 fi
                 echo -e "${INFO} │  (${file_index}/${total_files}) Asset [ ${file_name} ] already exists; checking SHA-256 before replacing."
                 fetch_assets_list
-                local existing_id existing_digest
+                local existing_id existing_digest existing_download_url
                 existing_id="$(jq -r --arg n "${file_name}" \
                     'select(.name == $n) | .id' "${ASSETS_LIST_FILE}" 2>/dev/null | head -1)"
                 existing_digest="$(jq -r --arg n "${file_name}" \
                     'select(.name == $n) | .digest // ""' "${ASSETS_LIST_FILE}" 2>/dev/null | head -1)"
+                existing_download_url="$(jq -r --arg n "${file_name}" \
+                    'select(.name == $n) | .browser_download_url // ""' "${ASSETS_LIST_FILE}" 2>/dev/null | head -1)"
 
                 # Compare local SHA-256 against the remote digest before deciding to replace
                 local local_hash_check=""
                 local_hash_check="$(${SHA256_CMD} "${file_path}" 2>/dev/null | awk '{print $1}')"
                 if [[ -n "${local_hash_check}" && "${existing_digest}" == "sha256:${local_hash_check}" ]]; then
-                    echo -e "${DONE} └─ (${file_index}/${total_files}) SHA-256 verified identical; skipping re-upload: [ ${file_name} ]"
+                    echo -e "${DONE} │  (${file_index}/${total_files}) SHA-256 verified identical; skipping re-upload: [ ${file_name} ]"
+                    echo -e "${DONE} └─ (${file_index}/${total_files}) Download URL: [ ${existing_download_url} ]"
                     echo ""
                     # Record as skipped (not a failure); caller counts return 2 as skipped
                     return 2
@@ -908,7 +912,7 @@ upload_asset() {
                     echo -e "${INFO} │  (${file_index}/${total_files}) SHA-256 mismatch for [ ${file_name} ]; replacing."
                 fi
 
-                # Just in case the 422 was caused by a stale asset from a previous attempt (state != "uploaded"), delete it before retrying.
+                # Delete the existing asset so the re-upload does not hit another 422 duplicate-name conflict.
                 if [[ -n "${existing_id}" ]]; then
                     delete_asset "${existing_id}" "${file_name}" "${file_index}" "${total_files}"
                 fi
@@ -1000,7 +1004,7 @@ upload_all_assets() {
             up_success=$((up_success + 1))
         elif [[ "${upload_ret}" -eq 2 ]]; then
             up_skip=$((up_skip + 1))
-            skipped_files+=("$(basename "${file_path}")")
+            skipped_files+=("${file_path}")
         else
             up_fail=$((up_fail + 1))
         fi
@@ -1017,7 +1021,7 @@ upload_all_assets() {
             # Skip files that were intentionally skipped
             local is_skipped="false"
             for sf in "${skipped_files[@]}"; do
-                [[ "${sf}" == "${fname}" ]] && is_skipped="true" && break
+                [[ "$(basename "${sf}")" == "${fname}" ]] && is_skipped="true" && break
             done
             [[ "${is_skipped}" == "true" ]] && continue
             # Use -F (fixed string) so filenames with regex special chars (. + [ etc.) match literally
@@ -1028,9 +1032,25 @@ upload_all_assets() {
 
     # List skipped files separately
     if [[ "${up_skip}" -gt 0 ]]; then
-        echo -e "${NOTE} Files skipped (SHA-256 identical or replaces_artifacts=false):"
-        for sf in "${skipped_files[@]}"; do
-            echo -e "${NOTE}   - ${sf}"
+        local skip_total="${#skipped_files[@]}"
+        local skip_idx=0
+        local max_sfname_len=0
+        for sf_path in "${skipped_files[@]}"; do
+            local sfn
+            sfn="$(basename "${sf_path}")"
+            [[ "${#sfn}" -gt "${max_sfname_len}" ]] && max_sfname_len="${#sfn}"
+        done
+        for sf_path in "${skipped_files[@]}"; do
+            skip_idx=$((skip_idx + 1))
+            local sfn sfn_padded sf_hash
+            sfn="$(basename "${sf_path}")"
+            printf -v sfn_padded "%-${max_sfname_len}s" "${sfn}"
+            sf_hash="$(${SHA256_CMD} "${sf_path}" 2>/dev/null | awk '{print $1}')"
+            if [[ -n "${sf_hash}" ]]; then
+                echo -e "${INFO} SKIPPED  ${skip_idx}/${skip_total} [ ${sfn_padded} ]  [ sha256:${sf_hash} ]"
+            else
+                echo -e "${INFO} SKIPPED  ${skip_idx}/${skip_total} [ ${sfn} ]"
+            fi
         done
     fi
 

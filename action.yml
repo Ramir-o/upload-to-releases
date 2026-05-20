@@ -27,7 +27,7 @@ inputs:
     required: false
     default: "true"
   upload_timeout:
-    description: "Per-file upload timeout in minutes. If a single file upload exceeds this limit it is skipped and the next file is attempted. Set to 0 for unlimited (not recommended for large batches). (default: 10)"
+    description: "Per-file upload timeout in minutes (default: 10)"
     required: false
     default: "10"
   make_latest:
