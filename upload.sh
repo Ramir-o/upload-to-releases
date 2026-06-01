@@ -53,6 +53,8 @@ allow_updates="true"
 remove_artifacts="false"
 # Replace an existing asset that has the same filename (true/false)
 replaces_artifacts="true"
+# Skip SHA-256 comparison before replacing duplicate assets (true/false)
+skip_sha256_check="false"
 # Mark this release as the latest release (true/false/legacy)
 make_latest="true"
 # Mark this release as a pre-release (true/false)
@@ -311,6 +313,7 @@ init_var() {
     allow_updates="${INPUT_ALLOW_UPDATES:-true}"
     remove_artifacts="${INPUT_REMOVE_ARTIFACTS:-false}"
     replaces_artifacts="${INPUT_REPLACES_ARTIFACTS:-true}"
+    skip_sha256_check="${INPUT_SKIP_SHA256_CHECK:-false}"
     upload_timeout="${INPUT_UPLOAD_TIMEOUT:-5}"
     make_latest="${INPUT_MAKE_LATEST:-true}"
     prerelease="${INPUT_PRERELEASE:-false}"
@@ -334,6 +337,7 @@ init_var() {
         "allow_updates:${allow_updates}" \
         "remove_artifacts:${remove_artifacts}" \
         "replaces_artifacts:${replaces_artifacts}" \
+        "skip_sha256_check:${skip_sha256_check}" \
         "prerelease:${prerelease}" \
         "draft:${draft}" \
         "out_log:${out_log}"; do
@@ -377,6 +381,7 @@ init_var() {
     echo -e "${INFO} allow_updates:      [ ${allow_updates} ]"
     echo -e "${INFO} remove_artifacts:   [ ${remove_artifacts} ]"
     echo -e "${INFO} replaces_artifacts: [ ${replaces_artifacts} ]"
+    echo -e "${INFO} skip_sha256_check: [ ${skip_sha256_check} ]"
     echo -e "${INFO} upload_timeout:     [ ${timeout_display} ]"
     echo -e "${INFO} make_latest:        [ ${make_latest} ]"
     echo -e "${INFO} prerelease:         [ ${prerelease} ]"
@@ -895,7 +900,11 @@ upload_asset() {
                     echo ""
                     return 1
                 fi
-                echo -e "${INFO} │  (${file_index}/${total_files}) Asset [ ${file_name} ] already exists; checking SHA-256 before replacing."
+                if [[ "${skip_sha256_check}" == "true" ]]; then
+                    echo -e "${INFO} │  (${file_index}/${total_files}) Asset [ ${file_name} ] already exists; replacing without SHA-256 check."
+                else
+                    echo -e "${INFO} │  (${file_index}/${total_files}) Asset [ ${file_name} ] already exists; checking SHA-256 before replacing."
+                fi
                 fetch_assets_list
                 local existing_id existing_digest existing_download_url
                 existing_id="$(jq -r --arg n "${file_name}" \
@@ -905,19 +914,26 @@ upload_asset() {
                 existing_download_url="$(jq -r --arg n "${file_name}" \
                     'select(.name == $n) | .browser_download_url // ""' "${ASSETS_LIST_FILE}" 2>/dev/null | head -1)"
 
-                # Compare local SHA-256 against the remote digest before deciding to replace
-                local local_hash_check=""
-                local_hash_check="$(${SHA256_CMD} "${file_path}" 2>/dev/null | awk '{print $1}')"
-                if [[ -n "${local_hash_check}" && "${existing_digest}" == "sha256:${local_hash_check}" ]]; then
-                    echo -e "${DONE} │  (${file_index}/${total_files}) SHA-256 verified identical; skipping re-upload: [ ${file_name} ]"
-                    echo -e "${INFO} └─ (${file_index}/${total_files}) Download URL: [ ${existing_download_url} ]"
-                    echo ""
-                    # Record as skipped (not a failure); caller counts return 2 as skipped
-                    return 2
+                # Compare local SHA-256 against the remote digest before deciding to replace,
+                # unless the caller explicitly wants to force replacement.
+                if [[ "${skip_sha256_check}" != "true" ]]; then
+                    local local_hash_check=""
+                    local_hash_check="$(${SHA256_CMD} "${file_path}" 2>/dev/null | awk '{print $1}')"
+                    if [[ -n "${local_hash_check}" && "${existing_digest}" == "sha256:${local_hash_check}" ]]; then
+                        echo -e "${DONE} │  (${file_index}/${total_files}) SHA-256 verified identical; no re-upload needed: [ ${file_name} ]"
+                        echo -e "${INFO} └─ (${file_index}/${total_files}) Download URL: [ ${existing_download_url} ]"
+                        echo ""
+                        # The remote asset is already in the desired state. Record its
+                        # existing URL so outputs and integrity verification still work.
+                        printf '%s=%s\n' "${file_name}" "${existing_download_url}" >>"${UPLOAD_RESULTS_FILE}"
+                        return 0
+                    fi
                 fi
 
                 # If we get here, the existing asset is different (or has no digest) — delete it and retry the upload.
-                if [[ -z "${existing_digest}" || "${existing_digest}" == "null" ]]; then
+                if [[ "${skip_sha256_check}" == "true" ]]; then
+                    echo -e "${INFO} │  (${file_index}/${total_files}) skip_sha256_check=true; replacing [ ${file_name} ]."
+                elif [[ -z "${existing_digest}" || "${existing_digest}" == "null" ]]; then
                     echo -e "${INFO} │  (${file_index}/${total_files}) No remote digest available for [ ${file_name} ]; replacing."
                 else
                     echo -e "${INFO} │  (${file_index}/${total_files}) SHA-256 mismatch for [ ${file_name} ]; replacing."
