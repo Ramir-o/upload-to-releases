@@ -26,6 +26,10 @@ inputs:
     description: "Replace an existing asset that has the same filename (true/false)"
     required: false
     default: "true"
+  skip_sha256_check:
+    description: "Skip SHA-256 comparison for duplicate assets and always replace when replaces_artifacts=true (true/false)"
+    required: false
+    default: "false"
   upload_timeout:
     description: "Per-file upload timeout in minutes (default: 5)"
     required: false
@@ -94,6 +98,7 @@ runs:
         INPUT_ALLOW_UPDATES: ${{ inputs.allow_updates }}
         INPUT_REMOVE_ARTIFACTS: ${{ inputs.remove_artifacts }}
         INPUT_REPLACES_ARTIFACTS: ${{ inputs.replaces_artifacts }}
+        INPUT_SKIP_SHA256_CHECK: ${{ inputs.skip_sha256_check }}
         INPUT_UPLOAD_TIMEOUT: ${{ inputs.upload_timeout }}
         INPUT_MAKE_LATEST: ${{ inputs.make_latest }}
         INPUT_PRERELEASE: ${{ inputs.prerelease }}
@@ -143,6 +148,7 @@ runs:
         [[ -n "${INPUT_ALLOW_UPDATES}" ]]       && validate_boolean      "${INPUT_ALLOW_UPDATES}"       "allow_updates"
         [[ -n "${INPUT_REMOVE_ARTIFACTS}" ]]    && validate_boolean      "${INPUT_REMOVE_ARTIFACTS}"    "remove_artifacts"
         [[ -n "${INPUT_REPLACES_ARTIFACTS}" ]]  && validate_boolean      "${INPUT_REPLACES_ARTIFACTS}"  "replaces_artifacts"
+        [[ -n "${INPUT_SKIP_SHA256_CHECK}" ]]   && validate_boolean      "${INPUT_SKIP_SHA256_CHECK}"   "skip_sha256_check"
         [[ -n "${INPUT_MAKE_LATEST}" ]]         && validate_make_latest  "${INPUT_MAKE_LATEST}"         "make_latest"
         [[ -n "${INPUT_PRERELEASE}" ]]          && validate_boolean      "${INPUT_PRERELEASE}"          "prerelease"
         [[ -n "${INPUT_DRAFT}" ]]               && validate_boolean      "${INPUT_DRAFT}"               "draft"
